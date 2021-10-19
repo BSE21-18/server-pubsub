@@ -4,17 +4,19 @@ import (
 	"gorm.io/gorm"
 )
 
-type Customer struct {
+type Subscriber struct {
   gorm.Model
   Firstname  string
   Lastname string
-  Phone string
+  Phone string `gorm:"unique"`
+  Subscriptions []Subscription
 }
 
 type Subscription struct {
   gorm.Model
   Topic string  //sniffer device unique ID
-  Client string //mobile client, identified by phone number of customer
+  Subscriber Subscriber
+  SubscriberID uint
 }
 
 type ProcessingResult struct {
