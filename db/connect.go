@@ -1,39 +1,39 @@
 package db
 
 import (
-	"fmt" 
-	"log"
-	"database/sql" 
-	//_ "github.com/go-sql-driver/mysql" 
-	_ "github.com/lib/pq"
+  "gorm.io/gorm"
+  "gorm.io/driver/mysql"
+  "github.com/joho/godotenv"
+  "os"
 )
 
-func connect() *sql.DB {
-	/*** mysql *****
-	db, err := sql.Open("mysql","root:@tcp(127.0.0.1:3306)/rento-scanner-db")
-	if err != nil {  fmt.Println("Failed to connect to the dabtabase"); fmt.Println(err.Error()) 
-		return nil
-	}
-	*/
-	//**** YugaByteDB *******
-	const (
-      host     = "192.168.39.29"
-      port     = 30743
-      user     = "rsadmin"
-      password = "secr3t"
-      dbname   = "rento_scanner_db"
-    )
-    psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
-	db, err := sql.Open("postgres", psqlInfo)
-    if err != nil { fmt.Println("Failed to connect to the dabtabase"); fmt.Println(err.Error()) 
-        fmt.Println("rsgateway connecting to the dabtabase ... Failed.");
-        log.Fatal(err)
-    }else{
-	    fmt.Println("rsgateway connecting to the dabtabase ... OK.");
-	}
-	return db
-} 
-//--------------------------------
+
+func Connect() (*sql.DB, error) {
+	err := godotenv.Load(".env")
+      if err != nil {
+        log.Fatalf("Error loading .env file")
+      }
+	
+	dbUser := os.Getenv("MYSQL_DB_USER")
+	dbPswd := os.Getenv("MYSQL_DB_PSWD")
+	dbHost := os.Getenv("MYSQL_DB_HOST")
+	dbPort := os.Getenv("MYSQL_DB_PORT")
+	dbName := os.Getenv("MYSQL_DB_NAME")
+	
+	//dsn := "user:pass@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := fmt.Printf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", dbUser, dbPswd, dbHost, dbPort, dbName)
+    db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+      if err != nil {
+        return nil, err
+      }
+    //======= Migrate the schema ======
+    db.AutoMigrate(&Customer{})
+    db.AutoMigrate(&Subscription{})
+    db.AutoMigrate(&ProcessingResult{})
+    
+	return db, nil
+}
+
 
 
 

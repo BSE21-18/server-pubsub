@@ -25,5 +25,19 @@ func (ps *Pubsub) Publish(topic string, msg string) {
     //end if
   }
   
-  //TODO: persist the procssed maessage to the db for history
+  //TODO: prepare ProcessingResult object from the processedMsg valid json string
+  // 
+  
+  //persist the procssed maessage to the db for history
+  database := db.Connect()
+  database.Create(&ProcessingResult{
+      Date: "2021-10-20", 
+      Time: "09:15:02", 
+      Sniffer: "DV0897", 
+      Disease: "Late blight", 
+      PlantStatus: "mild +ve", 
+      Recommendation: "Please spray using the recommended chemical immediately or call experts for help"
+  })
 }
+
+
