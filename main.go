@@ -4,6 +4,10 @@ package main
 import (
     "fmt"
     "sync"
+    "log"
+	"flag"
+	"strings"
+	"github.com/julienschmidt/httprouter"
 )
 
 
@@ -33,11 +37,30 @@ func (ps *Pubsub) Close() {
   }
 }
 
-func main() {
-    fmt.Println("DATAVOC server started: waiting for publications and subscriptions")
-    //TODO: create a new instance of pubsub
-    //TODO: defer close the pubsub
+func getRouter() *httprouter.Router {
+	router := httprouter.New()
+	router.GET("/", index)
+	router.GET("/pub", publishing)
+	router.GET("/sub", subscribing)
+	router.POST("/register", registering)
+	return router
 }
+
+func main() {
+    //++++| os.Args |+++++
+    wsEndPoint := ":7000" 
+    addr := flag.String("addr", wsEndPoint, "websocket API gateway service address") 
+    flag.Parse()
+    //++++++++++++++++++++
+    
+    pubsubBroker := NewPubsub()
+    defer pubsubBroker.Close()
+    
+    fmt.Println("DATAVOC Websocket API gateway server listening on port: "+(strings.Split(wsEndPoint,":")[1])) 
+    log.Fatal(http.ListenAndServe(*addr, getRouter()))
+}
+
+
 
 
 
