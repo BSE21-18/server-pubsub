@@ -10,7 +10,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-
 type Pubsub struct {
   mu     sync.RWMutex
   subs   map[string][]chan string
@@ -22,6 +21,8 @@ func NewPubsub() *Pubsub {
   ps.subs = make(map[string][]chan string)
   return ps
 }
+
+var pubsubBroker *Pubsub
 
 func (ps *Pubsub) Close() {
   ps.mu.Lock()

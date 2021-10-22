@@ -3,11 +3,15 @@ package main
 
 import (
     "fmt"
+    "net/http"
     "encoding/json"
     "github.com/datavoc/server-pubsub/processor"
     "github.com/datavoc/server-pubsub/db"
+    "github.com/julienschmidt/httprouter"
     "github.com/gorilla/websocket"
 )
+
+var upgrader = websocket.Upgrader{} //use default options 
 
 func (ps *Pubsub) Publish(topic string, msg string) {
   ps.mu.RLock()
@@ -36,17 +40,17 @@ func (ps *Pubsub) Publish(topic string, msg string) {
   // 
   
   //persist the procssed maessage to the db for history
-  database, err = db.Connect()
+  database, err := db.Connect()
   if err != nil {
     fmt.Println(err)
   }else{
-    database.Create(&ProcessingResult{
+    database.Create(&db.ProcessingResult{
       Date: "2021-10-20", 
       Time: "09:15:02", 
       Sniffer: "DV0897", 
       Disease: "Late blight", 
       PlantStatus: "mild +ve", 
-      Recommendation: "Please spray using the recommended chemical immediately or call experts for help"
+      Recommendation: "Please spray using the recommended chemical immediately or call experts for help",
     })
   }
   
