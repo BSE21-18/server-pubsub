@@ -5,6 +5,7 @@ import (
     "encoding/json"
     "github.com/datavoc/server-pubsub/processor"
     "github.com/datavoc/server-pubsub/db"
+    "github.com/gorilla/websocket"
 )
 
 func (ps *Pubsub) Subscribe(topic string) <-chan string {
@@ -50,16 +51,45 @@ func subscribing(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	defer webclient.Close() 
 	
 	fmt.Println("> New websocket request: subscribing ...")
-	//TODO: retrieve a list of topics this client subscribed to from db
-	//
-	//TODO: for each of the topics, request for a channel through which 
-	//      to receive updates
-	myChannel := pubsubBroker.Subscribe(topic)
-	//TODO: push the channel to a list of channels
-	//TODO ensure to close all channels before leaving ie defer close them
-	//TODO: keep watching the channels for any new updates
-	//TODO: if a channel is closed, remove it from the list of channels to listen to
-	//TODO: if a new update arrives, push it to the front end
+	
+	//retrieve a list of topics this client subscribed to from db
+	database, err := db.Connect()
+      if err != nil {
+        json.NewEncoder(w).Encode(struct{ errors: err})
+      }
+      
+      //define the shape/format of the records which will come from db
+      type Row struct { 
+        Topic string 
+      }
+      
+      channels := []chan{}
+      defer for _, ch := range channels {
+        close(ch)
+      }
+      
+      var listOfTopics []Row
+      database.Model(&Subscription{}).Select("subscription.topic")
+      .Joins("left join subscriber on subscriber.id = subscription.id")
+      .Find(&listOfTopics{})
+      
+	//for each of the topics, 
+	for _, topic := range listOfTopics {
+	    //request for a channel through which to receive updates
+	    myChannel := pubsubBroker.Subscribe(topic)
+	    
+	    //push the channel to a list of channels
+	    channels = append(channels, myChannel)
+	}
+	
+	for key, ch := range channels {
+        massege, ok := <-ch
+        if ok != false {
+           fmt.Println("Received msg: ", massege, ok)
+           msg := []byte(massege)
+           err = webclient.WriteMessage(websocket.TextMessage, msg)
+        }
+    }
 }
 
 
