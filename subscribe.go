@@ -12,10 +12,10 @@ import (
 
 var upgrader = websocket.Upgrader{} //use default options 
 
-func (ps *Pubsub) Subscribe(topic string) <-chan string {
+func (ps *Pubsub) Subscribe(topic string) chan string {
   ps.mu.Lock()
   defer ps.mu.Unlock()
-  ch := make(<-chan string, 10)
+  ch := make(chan string, 10)
   ps.subs[topic] = append(ps.subs[topic], ch)
   return ch
 }
@@ -79,7 +79,7 @@ func subscribing(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	}
 	
 	for {
-	    for key, ch := range channels {
+	    for _, ch := range channels {
             massege, ok := <-ch
             if ok != false {
                fmt.Println("Received msg: ", massege, ok)

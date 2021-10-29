@@ -31,7 +31,7 @@ func Connect() (*gorm.DB, error) {
     //======= Migrate the schema ======
     db.AutoMigrate(&Subscriber{})
     db.AutoMigrate(&Subscription{})
-    db.AutoMigrate(&ProcessingResult{})
+    db.AutoMigrate(&ProcessedResult{})
     
 	return db, nil
 }

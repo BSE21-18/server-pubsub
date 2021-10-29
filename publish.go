@@ -2,16 +2,21 @@ package main
 
 
 import (
-    "fmt"
-    "net/http"
-    "encoding/json"
-    "github.com/datavoc/server-pubsub/processor"
-    "github.com/datavoc/server-pubsub/db"
-    "github.com/julienschmidt/httprouter"
-    "github.com/gorilla/websocket"
+  "fmt"
+  "net/http"
+  "encoding/json"
+  "github.com/datavoc/server-pubsub/processor"
+  "github.com/datavoc/server-pubsub/db"
+  "github.com/julienschmidt/httprouter"
+  "github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{} //use default options 
+
+func isJSON(str string) bool {
+  var jsn json.RawMessage
+  return json.Unmarshal([]byte(str), &jsn) == nil
+}
 
 func (ps *Pubsub) Publish(topic string, msg string) {
   ps.mu.RLock()
@@ -27,30 +32,33 @@ func (ps *Pubsub) Publish(topic string, msg string) {
     fmt.Println(err)
     return
   }
+  //enforce that processedMsg is a valid json string
+  ok := isJSON(processedMsg)
+  if !ok {
+    fmt.Println("Error: processedMsg from the processor is not a valid json string. Message neighther published nor saved.")
+    return
+  }
 
   for _, ch := range ps.subs[topic] {
-    //TODO: if the channel "ch" is closed, then
-        //delete it from this array of channels (subscribers)
-    //else
-        ch <- processedMsg
-    //end if
+       ch <- processedMsg
   }
   
-  //TODO: prepare ProcessingResult object from the processedMsg valid json string
-  // 
+  //prepare ProcessedResult object from the processedMsg valid json string
+  var processedMsgResponse db.ProcessedResult
+  json.Unmarshal([]byte(processedMsg), &processedMsgResponse)
   
-  //persist the procssed maessage to the db for history
+  //persist the procssed message to the db for history
   database, err := db.Connect()
   if err != nil {
     fmt.Println(err)
   }else{
-    database.Create(&db.ProcessingResult{
-      Date: "2021-10-20", 
-      Time: "09:15:02", 
-      Sniffer: "DV0897", 
-      Disease: "Late blight", 
-      PlantStatus: "mild +ve", 
-      Recommendation: "Please spray using the recommended chemical immediately or call experts for help",
+    database.Create(&db.ProcessedResult{
+      Date: processedMsgResponse.Date, 
+      Time: processedMsgResponse.Time, 
+      Sniffer: processedMsgResponse.Sniffer, 
+      Disease: processedMsgResponse.Disease, 
+      PlantStatus: processedMsgResponse.PlantStatus, 
+      Recommendation: processedMsgResponse.Recommendation,
     })
   }
   

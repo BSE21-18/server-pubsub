@@ -18,14 +18,14 @@ type Subscription struct {
   SubscriberID uint
 }
 
-type ProcessingResult struct {
+type ProcessedResult struct {
   gorm.Model
-  Date string
-  Time string
-  Sniffer string //the topic ie sniffer device unique ID
-  Disease string `default:"Late blight"`
-  PlantStatus string //healthy, mild +ve, moderate +ve, severe +ve
-  Recommendation string
+  Date string `json:"date"`
+  Time string `json:"time"`
+  Sniffer string `json:"sniffer"` //the topic ie sniffer device unique ID
+  Disease string `json:"disease" default:"Late blight"`
+  PlantStatus string `json:"plantStatus"` //healthy, mild +ve, moderate +ve, severe +ve
+  Recommendation string `json:"recommendation"`
 }
 
 

@@ -2,17 +2,40 @@ package processor
 
 
 import (
-    "fmt"
+  "fmt"
+  "net/http"
+  "encoding/json"
+  "bytes"
+   "io/ioutil"
 )
 
 func Process(msg string) (string, error) {
   fmt.Println("processor.Process: Processing ...")
   
-  //TODO: create an http client
-  //TODO: call the processor endpoint and pass the received string msg
-  //TODO: wait for processed message
-  //TODO: if response is an error, 
-            //return "", resp
-  //TODO: return the processed message
-  return msg, nil
+   //Encode the data
+   postBody, _ := json.Marshal(map[string]string{"data":  msg })
+   responseBody := bytes.NewBuffer(postBody)
+   
+    //Leverage Go's HTTP Post function to make request
+   resp, err := http.Post("http://localhost:7500/processor", "application/json", responseBody)
+   if err != nil {
+      return "", err
+   }
+   defer resp.Body.Close()
+   
+    //Read the response body
+   body, err := ioutil.ReadAll(resp.Body)
+   if err != nil {
+      fmt.Fatalln(err)
+      return "", err
+   }
+   
+   //convert response to string format
+   sb := string(body)
+   
+  return sb, nil
 }
+
+
+
+
