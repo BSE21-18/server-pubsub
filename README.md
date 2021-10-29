@@ -3,3 +3,7 @@ The server-pubsub is the main backend of DATAVOC project that manages all the ot
 
 ## The idea behind publish-subscribe setup
 Unique identifiers of the sniffer devices are registered as topics to which mobile clients subscribe to keep receiving any updates from. Whenever a sniffer device is used to detect late blight tomato disease, it sends the raw data to the webserver as a new message that should be processed and sent to all the device's subscribers (ie, mobile clients). Even if the server is handling very many messages from many different sniffer devices at the same time, the system will still be able to process and send the results to the appropriate subscribers in real-time. With the publish-subscribe techniques, the system does not have to first persist the processed messages into the database to then retrieve later and match which subscribers subscribed to which topics, a process which would totally kill the real-time capability since the database is an I/O operation, hence inherently slow. The publish-subscribe flow makes the system highly scalable. One customer can own many sniffer devices and can use many mobile clients to monitor the status of the tomato plants at the same time. This means, the tomato grower can have a number of sniffer devices each at a different location within their garden, and all of them work together to make the process faster.
+
+## The flow of data
+
+![web-sever-data-flow](https://user-images.githubusercontent.com/47475700/138554196-6b64f417-0b48-4703-89c4-e6b6221b306b.png)
