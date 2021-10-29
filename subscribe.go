@@ -10,8 +10,6 @@ import (
     "github.com/julienschmidt/httprouter"
 )
 
-var upgrader = websocket.Upgrader{} //use default options 
-
 func (ps *Pubsub) Subscribe(topic string) chan string {
   ps.mu.Lock()
   defer ps.mu.Unlock()
@@ -34,9 +32,9 @@ func registering(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	//write into db
 	database, err := db.Connect()
       if err != nil {
-        json.NewEncoder(w).Encode(struct{}{ errors: err})
+        json.NewEncoder(w).Encode(struct{errors string}{ errors: err.Error()})
       }
-	database.Create(&db.Subscription{Topic: reg.SnifferId,Subscriber: &db.Subscriber{ Firstname: reg.Firstname, Lastname: reg.Lastname, Phone: reg.Phone }})
+	database.Create(db.Subscription{Topic: reg.SnifferId, Subscriber: db.Subscriber{ Firstname: reg.Firstname, Lastname: reg.Lastname, Phone: reg.Phone }})
 	json.NewEncoder(w).Encode(reg)
 }
 
@@ -52,31 +50,30 @@ func subscribing(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	//retrieve a list of topics this client subscribed to from db
 	database, err := db.Connect()
       if err != nil {
-        json.NewEncoder(w).Encode(struct{}{ errors: err})
+        json.NewEncoder(w).Encode(struct{errors string}{ errors: err.Error()})
       }
       
-      //define the shape/format of the records which will come from db
-      type Row struct { 
-        Topic string 
-      }
+      var channels []chan string
       
-      strChan := make(<-chan string, 10)
-      channels := []strChan{}
       defer (func(){for _, ch := range channels {
         close(ch)
       }})()
       
-      var listOfTopics []Row
-      database.Model(&db.Subscription{}).Select("subscription.topic").Joins("left join subscriber on subscriber.id = subscription.id").Find(&listOfTopics{})
-      
-	//for each of the topics, 
-	for _, topic := range listOfTopics {
-	    //request for a channel through which to receive updates
+      //database.Model(&db.Subscription{}).Select("subscription.topic").Joins("left join subscriber on subscriber.id = subscription.id").Find(&listOfTopics{})
+      //database.Model(&db.Subscription{}).Select("subscription.topic").Joins("left join subscriber on subscriber.id = subscription.id").Scan(&result{})
+	
+	rows, err := database.Table("subscriptions").Select("subscriptions.topic").Joins("left join subscribers on subscribers.id = subscriptions.id").Rows()
+    for rows.Next() {
+        var topic string
+        rows.Scan(&topic)
+        
+        //get a channel through which to receive updates
 	    myChannel := pubsubBroker.Subscribe(topic)
 	    
 	    //push the channel to a list of channels
 	    channels = append(channels, myChannel)
-	}
+    }
+	
 	
 	for {
 	    for _, ch := range channels {
@@ -93,7 +90,6 @@ func subscribing(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
             case websocket.CloseNormalClosure,
                 websocket.CloseGoingAway,
                 websocket.CloseNoStatusReceived:
-                s.env.Statusf("Web socket closed by client: %s", err)
                 break
             }
         }

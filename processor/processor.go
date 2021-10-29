@@ -26,7 +26,6 @@ func Process(msg string) (string, error) {
     //Read the response body
    body, err := ioutil.ReadAll(resp.Body)
    if err != nil {
-      fmt.Fatalln(err)
       return "", err
    }
    

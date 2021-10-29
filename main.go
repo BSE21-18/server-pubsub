@@ -7,6 +7,7 @@ import (
     "log"
 	"flag"
 	"strings"
+	"net/http"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -40,7 +41,6 @@ func (ps *Pubsub) Close() {
 
 func getRouter() *httprouter.Router {
 	router := httprouter.New()
-	router.GET("/", index)
 	router.GET("/pub", publishing)
 	router.GET("/sub", subscribing)
 	router.POST("/register", registering)
