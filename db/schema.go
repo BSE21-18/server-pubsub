@@ -6,14 +6,14 @@ import (
 
 type Subscriber struct {
   gorm.Model
-  Firstname  string
-  Lastname string
-  Phone string `gorm:"unique"`
+  Firstname  string `json:"firstname"`
+  Lastname string `json:"lastname"`
+  Phone string `json:"phone" gorm:"unique"`
 }
 
 type Subscription struct {
   gorm.Model
-  Topic string `gorm:"unique"` //sniffer device unique ID
+  Topic string `json:"topic" gorm:"unique"` //sniffer device unique ID
   Subscriber Subscriber
   SubscriberID uint
 }

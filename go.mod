@@ -3,9 +3,9 @@ module github.com/datavoc/server-pubsub
 go 1.17
 
 require (
+	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/joho/godotenv v1.4.0
-	github.com/julienschmidt/httprouter v1.3.0
 	gorm.io/driver/mysql v1.1.2
 	gorm.io/gorm v1.21.16
 )

@@ -1,0 +1,49 @@
+<div id="display-parent">
+    <div id="connection-status"></div>
+    <hr/>
+    <div id="display-title"> <h1> Updates from server :</h1> </div>
+    <hr/>
+    <div id="display"> ... </div>
+</div>
+
+
+<script>
+    var displayParentDiv = document.querySelector("#display-parent");
+    var connectionStatusDiv = document.querySelector("#connection-status");
+    var displayTitleDiv = document.querySelector("#display-title");
+    var displayDiv = document.querySelector("#display");
+    
+    var SERVER_HOST = "localhost";
+    var base_url = `ws://${SERVER_HOST}:7000`;
+    var activeUserPhone = "+256706123303";
+    var userDevices     = ["DV00023", "DV00024"];
+    var getUpdatesFrom  = "All";
+
+    let socket = new WebSocket(base_url+"/getupdates");
+    
+    socket.onopen = function(e) {
+      connectionStatusDiv.textContent = "[open] Connection established";
+      socket.send(`{"device": "${getUpdatesFrom}", "phone": "${activeUserPhone}"}`);
+    };
+
+    socket.onmessage = function(event) {
+      displayDiv.textContent += `[message] Data received from server: ${event.data}`;
+    };
+
+    socket.onclose = function(event) {
+      if (event.wasClean) {
+        connectionStatusDiv.textContent = `[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`;
+      } else {
+        // e.g. server process killed or network down
+        // event.code is usually 1006 in this case
+        connectionStatusDiv.textContent = '[close] Connection died';
+      }
+    };
+
+    socket.onerror = function(error) {
+      connectionStatusDiv.textContent = `[error] ${error.message}`;
+    };
+</script>
+
+
+

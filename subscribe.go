@@ -3,16 +3,14 @@ package main
 
 import (
     "fmt"
+    "bytes"
     "net/http"
     "encoding/json"
     "github.com/datavoc/server-pubsub/db"
     "github.com/gorilla/websocket"
-    "github.com/julienschmidt/httprouter"
 )
 
 func (ps *Pubsub) Subscribe(topic string) chan string {
-  ps.mu.Lock()
-  defer ps.mu.Unlock()
   ch := make(chan string, 10)
   ps.subs[topic] = append(ps.subs[topic], ch)
   return ch
@@ -25,20 +23,21 @@ type Registration struct {
   SnifferId string `json:"snifferId"`
 }
 
-func registering(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func registering(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type","application/json")
 	var reg Registration
 	_ = json.NewDecoder(r.Body).Decode(&reg)
 	//write into db
-	database, err := db.Connect()
-      if err != nil {
-        json.NewEncoder(w).Encode(struct{errors string}{ errors: err.Error()})
-      }
 	database.Create(db.Subscription{Topic: reg.SnifferId, Subscriber: db.Subscriber{ Firstname: reg.Firstname, Lastname: reg.Lastname, Phone: reg.Phone }})
 	json.NewEncoder(w).Encode(reg)
 }
 
-func subscribing(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+type UpdatesRequest struct {
+    Device string `json:"device"`
+    Phone string `json:"phone"`
+}
+
+func subscribing(w http.ResponseWriter, r *http.Request) {
 	//Upgrade to websocket
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true; }
 	
@@ -48,53 +47,72 @@ func subscribing(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	fmt.Println("> New websocket request: subscribing ...")
 	
 	//retrieve a list of topics this client subscribed to from db
-	database, err := db.Connect()
-      if err != nil {
-        json.NewEncoder(w).Encode(struct{errors string}{ errors: err.Error()})
-      }
+	var channels []chan string
+    defer (func(){for _, ch := range channels {
+       close(ch)
+    }})()
       
-      var channels []chan string
-      
-      defer (func(){for _, ch := range channels {
-        close(ch)
-      }})()
-      
-      //database.Model(&db.Subscription{}).Select("subscription.topic").Joins("left join subscriber on subscriber.id = subscription.id").Find(&listOfTopics{})
-      //database.Model(&db.Subscription{}).Select("subscription.topic").Joins("left join subscriber on subscriber.id = subscription.id").Scan(&result{})
-	
-	rows, err := database.Table("subscriptions").Select("subscriptions.topic").Joins("left join subscribers on subscribers.id = subscriptions.id").Rows()
-    for rows.Next() {
-        var topic string
-        rows.Scan(&topic)
-        
-        //get a channel through which to receive updates
-	    myChannel := pubsubBroker.Subscribe(topic)
+    for {
+        _, dataFromClient, err := webclient.ReadMessage() 
+        if err != nil {
+            if ce, ok := err.(*websocket.CloseError); ok {
+                switch ce.Code {
+                case websocket.CloseNormalClosure,
+                    websocket.CloseGoingAway,
+                    websocket.CloseNoStatusReceived:
+                    break
+                }
+            }
+        }else if len(dataFromClient) > 8 {
+	        fmt.Println("len(dataFromClient) > 8 = true")
+	        //use the data submited by the client
+	        var updreq UpdatesRequest
+            _ = json.NewDecoder(bytes.NewReader(dataFromClient)).Decode(&updreq)
+            fmt.Println("updreq.Device =", updreq.Device, ", updreq.Phone=", updreq.Phone)
+            if updreq.Device == "All" {
+                fmt.Println("updreq.Device == All = true")
+                //getting updates from all devices to which this user subscribed 
+                //(ie, from all devices registered by the same user)
+                rows, err := database.Table("subscriptions").Select("subscriptions.topic as topic").Joins("left join subscribers on subscribers.id = subscriptions.subscriber_id").Where("subscribers.phone = ?", updreq.Phone).Rows()
+                if err != nil {
+                    fmt.Println("!!Error while reterieving subscriptions. ", err.Error())
+                }else{
+                    fmt.Println("< rows.Next() >")
+                    for rows.Next() {
+                        var topic string
+                        rows.Scan(&topic)
+                        fmt.Println("retrieved topic =", topic)
+                        //get a channel through which to receive updates
+                        myChannel := pubsubBroker.Subscribe(topic)
+                        
+                        //push the channel to a list of channels
+                        channels = append(channels, myChannel)
+                    }
+                    fmt.Println("</ rows.Next() >")
+                }
+           }else{
+              //filtering to receive updates from one soecific device (topic)
+              //first empty the channels map in case it's not empty
+              channels = nil
+              topic := updreq.Device
+              myChannel := pubsubBroker.Subscribe(topic)
+              channels = append(channels, myChannel)
+           }
+	    }
 	    
-	    //push the channel to a list of channels
-	    channels = append(channels, myChannel)
-    }
-	
-	
-	for {
 	    for _, ch := range channels {
+            fmt.Println("getting here means the user already has atleast one channel")
+            //getting here means the user already has atleast one channel.
             massege, ok := <-ch
             if ok != false {
                fmt.Println("Received msg: ", massege, ok)
                msg := []byte(massege)
                err = webclient.WriteMessage(websocket.TextMessage, msg)
             }
+            fmt.Println(ok, "Received msg from channel: ", massege)
         }
-        _, _, err := webclient.ReadMessage()
-        if ce, ok := err.(*websocket.CloseError); ok {
-            switch ce.Code {
-            case websocket.CloseNormalClosure,
-                websocket.CloseGoingAway,
-                websocket.CloseNoStatusReceived:
-                break
-            }
-        }
-        
     }
+    fmt.Println("Loop exited because client closed the connection.")
 }
 
 

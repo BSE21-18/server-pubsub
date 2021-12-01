@@ -3,47 +3,34 @@ package main
 
 import (
     "fmt"
-    "sync"
     "log"
 	"flag"
+	"embed"
+	"io/fs"
 	"strings"
 	"net/http"
-	"github.com/julienschmidt/httprouter"
+	"gorm.io/gorm"
+	"github.com/gorilla/mux"
+	"github.com/datavoc/server-pubsub/db"
 )
 
-type Pubsub struct {
-  mu     sync.RWMutex
-  subs   map[string][]chan string
-  closed bool
-}
+//go:embed client/web/*
+var website embed.FS
 
-func NewPubsub() *Pubsub {
-  ps := &Pubsub{}
-  ps.subs = make(map[string][]chan string)
-  return ps
-}
+//go:embed client/sniffer/*
+var sniffer embed.FS
 
-var pubsubBroker *Pubsub
+var database *gorm.DB
 
-func (ps *Pubsub) Close() {
-  ps.mu.Lock()
-  defer ps.mu.Unlock()
-
-  if !ps.closed {
-    ps.closed = true
-    for _, subs := range ps.subs {
-      for _, ch := range subs {
-        close(ch)
-      }
-    }
-  }
-}
-
-func getRouter() *httprouter.Router {
-	router := httprouter.New()
-	router.GET("/pub", publishing)
-	router.GET("/sub", subscribing)
-	router.POST("/register", registering)
+func getRouter() *mux.Router {
+	client_web, _ := fs.Sub(website, "client/web")
+	client_sniffer, _ := fs.Sub(sniffer, "client/sniffer")
+	router := mux.NewRouter()
+	router.HandleFunc("/publish", publishing).Methods("GET")
+	router.HandleFunc("/subscribe", registering).Methods("POST")
+	router.HandleFunc("/getupdates", subscribing).Methods("GET")
+	router.PathPrefix("/client/web").Handler(http.StripPrefix("/client/web/", http.FileServer(http.FS(client_web))) ).Methods("GET")
+	router.PathPrefix("/client/sniffer").Handler(http.StripPrefix("/client/sniffer/", http.FileServer(http.FS(client_sniffer))) ).Methods("GET")
 	return router
 }
 
@@ -53,9 +40,10 @@ func main() {
     addr := flag.String("addr", wsEndPoint, "websocket API gateway service address") 
     flag.Parse()
     //++++++++++++++++++++
+    database, _ = db.Connect()
     
-    pubsubBroker := NewPubsub()
-    defer pubsubBroker.Close()
+    pubsubBroker = NewPubsub()
+    //defer pubsubBroker.Close()
     
     fmt.Println("DATAVOC Websocket API gateway server listening on port: "+(strings.Split(wsEndPoint,":")[1])) 
     log.Fatal(http.ListenAndServe(*addr, getRouter()))

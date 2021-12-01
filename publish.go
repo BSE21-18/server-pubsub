@@ -2,16 +2,15 @@ package main
 
 
 import (
+  "io"
   "fmt"
+  "bytes"
   "net/http"
   "encoding/json"
   "github.com/datavoc/server-pubsub/processor"
   "github.com/datavoc/server-pubsub/db"
-  "github.com/julienschmidt/httprouter"
   "github.com/gorilla/websocket"
 )
-
-var upgrader = websocket.Upgrader{} //use default options 
 
 func isJSON(str string) bool {
   var jsn json.RawMessage
@@ -19,9 +18,6 @@ func isJSON(str string) bool {
 }
 
 func (ps *Pubsub) Publish(topic string, msg string) {
-  ps.mu.RLock()
-  defer ps.mu.RUnlock()
-
   if ps.closed {
     return
   }
@@ -38,9 +34,10 @@ func (ps *Pubsub) Publish(topic string, msg string) {
     fmt.Println("Error: processedMsg from the processor is not a valid json string. Message neighther published nor saved.")
     return
   }
-
+  
   for _, ch := range ps.subs[topic] {
        ch <- processedMsg
+       fmt.Println("Published on topic (",topic,") to a channel")
   }
   
   //prepare ProcessedResult object from the processedMsg valid json string
@@ -48,20 +45,14 @@ func (ps *Pubsub) Publish(topic string, msg string) {
   json.Unmarshal([]byte(processedMsg), &processedMsgResponse)
   
   //persist the procssed message to the db for history
-  database, err := db.Connect()
-  if err != nil {
-    fmt.Println(err)
-  }else{
-    database.Create(&db.ProcessedResult{
+  database.Create(&db.ProcessedResult{
       Date: processedMsgResponse.Date, 
       Time: processedMsgResponse.Time, 
       Sniffer: processedMsgResponse.Sniffer, 
       Disease: processedMsgResponse.Disease, 
       PlantStatus: processedMsgResponse.PlantStatus, 
       Recommendation: processedMsgResponse.Recommendation,
-    })
-  }
-  
+  })
 }
 
 type Publication struct {
@@ -69,16 +60,31 @@ type Publication struct {
     Message string `json:"message"`
 }
 
-func publishing(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func publishing(w http.ResponseWriter, r *http.Request) {
 	//Upgrade to websocket
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true; }
 	
-	webclient, _ := upgrader.Upgrade(w, r, nil) 
+	webclient, _ := upgrader.Upgrade(w, r, nil)
 	defer webclient.Close() 
-	
-	var pbn Publication
-	_ = json.NewDecoder(r.Body).Decode(&pbn)
-	pubsubBroker.Publish(pbn.Topic, pbn.Message)
+	fmt.Println("Websocket Connetion establisehd")
+	for {
+	    _, dataFromClient, err := webclient.ReadMessage() 
+		if err != nil {
+			if websocket.IsCloseError(err, websocket.CloseGoingAway) || err == io.EOF { 
+		        break
+	        }
+	        fmt.Println("!! Error:", err) 
+		}else if len(dataFromClient) > 8 {
+		    //use the data submited by the client
+		    var pbn Publication
+	        _ = json.NewDecoder(bytes.NewReader(dataFromClient)).Decode(&pbn)
+	        pubsubBroker.Publish(pbn.Topic, pbn.Message)
+	        _ = webclient.WriteMessage(websocket.TextMessage, []byte("Data submited successfully."))
+		    //terminate the loop
+		    break
+		}
+	}
+	fmt.Println("Loop exited, closing websocket ...")
 }
 
 
