@@ -17,22 +17,22 @@ func isJSON(str string) bool {
   return json.Unmarshal([]byte(str), &jsn) == nil
 }
 
-func (ps *Pubsub) Publish(topic string, msg string) {
+func (ps *Pubsub) Publish(topic string, msg string) string {
   if ps.closed {
-    return
+    return "Error: server channels closed"
   }
   
   //call the processor and wait for a response (ie, processed message)
   processedMsg, err := processor.Process(msg)
   if err != nil {
     fmt.Println(err)
-    return
+    return "Error: server cant process"
   }
   //enforce that processedMsg is a valid json string
   ok := isJSON(processedMsg)
   if !ok {
     fmt.Println("Error: processedMsg from the processor is not a valid json string. Message neighther published nor saved.")
-    return
+    return "Error: invalid data"
   }
   
   for _, ch := range ps.subs[topic] {
@@ -53,6 +53,10 @@ func (ps *Pubsub) Publish(topic string, msg string) {
       PlantStatus: processedMsgResponse.PlantStatus, 
       Recommendation: processedMsgResponse.Recommendation,
   })
+  
+  shortMessageForLCD := fmt.Sprintf("plant status: %s", processedMsgResponse.PlantStatus)
+  
+  return shortMessageForLCD
 }
 
 type Publication struct {
@@ -66,7 +70,7 @@ func publishing(w http.ResponseWriter, r *http.Request) {
 	
 	webclient, _ := upgrader.Upgrade(w, r, nil)
 	defer webclient.Close() 
-	fmt.Println("Websocket Connetion establisehd")
+	fmt.Println("Sniffer device connetion established.")
 	for {
 	    _, dataFromClient, err := webclient.ReadMessage() 
 		if err != nil {
@@ -75,16 +79,17 @@ func publishing(w http.ResponseWriter, r *http.Request) {
 	        }
 	        fmt.Println("!! Error:", err) 
 		}else if len(dataFromClient) > 8 {
+		    fmt.Println("Data received from Sniffer device.")
 		    //use the data submited by the client
 		    var pbn Publication
 	        _ = json.NewDecoder(bytes.NewReader(dataFromClient)).Decode(&pbn)
-	        pubsubBroker.Publish(pbn.Topic, pbn.Message)
-	        _ = webclient.WriteMessage(websocket.TextMessage, []byte("Data submited successfully."))
-		    //terminate the loop
+	        shortMessageForLCD := pubsubBroker.Publish(pbn.Topic, pbn.Message)
+	        _ = webclient.WriteMessage(websocket.TextMessage, []byte(shortMessageForLCD))
+	        fmt.Println("Short message for LCD screen => ", shortMessageForLCD)
+		    //terminate the infinite loop
 		    break
 		}
 	}
-	fmt.Println("Loop exited, closing websocket ...")
 }
 
 

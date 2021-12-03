@@ -16,7 +16,7 @@ func Process(msg string) (string, error) {
    postBody, _ := json.Marshal(map[string]string{"data":  msg })
    responseBody := bytes.NewBuffer(postBody)
    
-    //Leverage Go's HTTP Post function to make request
+   //Leverage Go's HTTP Post function to make request
    resp, err := http.Post("http://localhost:7500/processor", "application/json", responseBody)
    if err != nil {
       return "", err
